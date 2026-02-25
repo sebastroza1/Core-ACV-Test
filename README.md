@@ -1,29 +1,53 @@
 # Core ACV Test (Desktop)
 
-Aplicación Flutter de escritorio con un menú simple de 3 opciones:
+Prototipo Flutter Desktop con pipeline híbrido para Face FAST:
+- Landmarks/Face Mesh (mock hoy, interfaz lista para integración real).
+- Clasificador on-device TFLite palsy vs normal (mock hoy, interfaz lista para modelo real).
+- Score clínico interpretable por zonas + score fusionado final.
 
-1. **Smart Watch (Huawei)**: simulación de conexión Bluetooth y lectura de giroscopio/acelerómetro.
-2. **Cara**: evaluación de asimetrías faciales basada en métricas normalizadas.
-3. **Habla**: evaluación de asimetrías del habla usando el trabalenguas _"tres tristes tigres"_.
-
-## Requisitos
-
-- Flutter SDK `>=3.19` (Dart 3.3+).
-- Habilitar plataforma de escritorio:
+## Ejecutar en Desktop
 
 ```bash
 flutter config --enable-windows-desktop
 flutter config --enable-macos-desktop
 flutter config --enable-linux-desktop
-```
-
-## Ejecución
-
-```bash
 flutter pub get
 flutter run -d windows # o macos/linux
 ```
 
-## Nota de integración real
+## Modo de uso (Face)
+1. Abrir módulo **Cara** desde el menú.
+2. Verificar cámara y warnings de quality gate.
+3. Capturar **Neutral** (baseline obligatorio).
+4. Capturar **Smile** y **Anger**.
+5. Presionar **Calcular** para obtener métricas por expresión y score final.
 
-La clase `SimulatedBluetoothWatchService` está separada de la UI para facilitar reemplazo por una implementación Bluetooth real (Huawei) sin tocar pantallas.
+Si falta Neutral, el cálculo final se bloquea.
+
+## Configuración de fusión y umbrales
+
+Ajustar en `lib/src/core/app_config.dart`, clase `FacePipelineConfig`:
+- `alpha` (default `0.65`):
+  - `score_final = alpha * score_geom + (1 - alpha) * (palsy_prob * 100)`
+- Umbrales estado:
+  - `okMax` (<30), `obsMax` (30–60), `alert` (>60)
+- Umbrales quality gate:
+  - centrado, yaw/pitch/roll, brillo, confianza y cantidad de landmarks
+- Umbrales por métrica (`metricThresholds`)
+
+## Integración real pendiente (preparada)
+
+### Landmarks reales
+Implementar `LandmarksDetector` en `lib/src/features/face/face_pipeline.dart` usando MLKit/MediaPipe (o equivalente) y activar toggle “Real”.
+
+### Modelo `.tflite` + labels
+Implementar `PalsyClassifier` real en el mismo archivo o en un servicio dedicado.
+Ubicación sugerida:
+- `assets/models/palsy_classifier.tflite`
+- `assets/models/labels.txt`
+
+Agregar assets a `pubspec.yaml` cuando el modelo exista.
+
+## Disclaimer
+
+**Esto NO es diagnóstico médico. Si sospecha ACV, contacte emergencias.**
