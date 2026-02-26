@@ -4,7 +4,7 @@ class AppStrings {
   static const String appTitle = 'Core ACV Test';
   static const String faceTitle = 'Face FAST (Pipeline híbrido)';
   static const String disclaimer =
-      'Esto NO es diagnóstico médico. Si sospecha ACV, contacte emergencias.';
+      'This detects facial asymmetry patterns; it does not diagnose stroke. If you suspect stroke, seek emergency care.';
   static const String captureNeutral = 'Capturar Neutral';
   static const String captureSmile = 'Capturar Smile';
   static const String captureAnger = 'Capturar Anger';

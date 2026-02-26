@@ -32,6 +32,16 @@ class MockLandmarksDetector implements LandmarksDetector {
         : expression == FaceExpression.anger
             ? 0.06
             : 0.03;
+
+    final List<LandmarkPoint> dense = List<LandmarkPoint>.generate(
+      468,
+      (int i) => LandmarkPoint(
+        x: ((i % 26) / 26) + noise / 8,
+        y: ((i ~/ 26) / 18) + boost / 10,
+        z: (sin(i / 30) * 0.02) + noise / 6,
+      ),
+    );
+
     return FacialLandmarks(
       leftMouthCornerY: 0.48 + boost + noise,
       rightMouthCornerY: 0.44 + noise / 2,
@@ -48,8 +58,9 @@ class MockLandmarksDetector implements LandmarksDetector {
       centerOffsetRatio: 0.08 + noise,
       brightness: 110,
       confidence: 0.91,
-      landmarkCount: 42,
+      landmarkCount: dense.length,
       source: DataSource.mock,
+      denseLandmarks: dense,
     );
   }
 }
@@ -87,6 +98,18 @@ class RealLandmarksDetector implements LandmarksDetector {
 
       final Map<String, dynamic> payload =
           jsonDecode(response.body) as Map<String, dynamic>;
+      final List<dynamic> raw = (payload['landmarks'] as List<dynamic>?) ??
+          const <dynamic>[];
+      final List<LandmarkPoint> dense = raw
+          .map((dynamic e) => e as Map<String, dynamic>)
+          .map(
+            (Map<String, dynamic> e) => LandmarkPoint(
+              x: (e['x'] as num?)?.toDouble() ?? 0,
+              y: (e['y'] as num?)?.toDouble() ?? 0,
+              z: (e['z'] as num?)?.toDouble() ?? 0,
+            ),
+          )
+          .toList();
 
       return FacialLandmarks(
         leftMouthCornerY: _d(payload, 'leftMouthCornerY', 0.48),
@@ -104,8 +127,10 @@ class RealLandmarksDetector implements LandmarksDetector {
         centerOffsetRatio: _d(payload, 'centerOffsetRatio', 0.08),
         brightness: _d(payload, 'brightness', 100),
         confidence: _d(payload, 'confidence', 0.7),
-        landmarkCount: (payload['landmarkCount'] as num?)?.toInt() ?? 24,
+        landmarkCount:
+            (payload['landmarkCount'] as num?)?.toInt() ?? dense.length,
         source: DataSource.real,
+        denseLandmarks: dense,
       );
     } on TimeoutException {
       return _fallbackHeuristic(expression, frameBytes);
@@ -143,6 +168,7 @@ class RealLandmarksDetector implements LandmarksDetector {
         confidence: 0.60,
         landmarkCount: 20,
         source: DataSource.fallback,
+        denseLandmarks: const <LandmarkPoint>[],
       );
     }
 
@@ -173,7 +199,6 @@ class RealLandmarksDetector implements LandmarksDetector {
     final double rightFace = roiMean(0.52, 0.85, 0.10, 0.90);
     final double upperFace = roiMean(0.15, 0.85, 0.10, 0.45);
     final double lowerFace = roiMean(0.15, 0.85, 0.55, 0.90);
-
     final double leftEyeRoi = roiMean(0.22, 0.40, 0.24, 0.40);
     final double rightEyeRoi = roiMean(0.60, 0.78, 0.24, 0.40);
     final double leftBrowRoi = roiMean(0.22, 0.40, 0.16, 0.24);
@@ -182,14 +207,17 @@ class RealLandmarksDetector implements LandmarksDetector {
     final double rightMouthRoi = roiMean(0.55, 0.75, 0.62, 0.80);
     final double centerMouthRoi = roiMean(0.45, 0.55, 0.62, 0.80);
 
-    final double globalBrightness = ((leftFace + rightFace + upperFace + lowerFace) / 4).clamp(0, 255);
-
+    final double globalBrightness =
+        ((leftFace + rightFace + upperFace + lowerFace) / 4).clamp(0, 255);
     final double faceBias = (leftFace - rightFace) / max(1, leftFace + rightFace);
-    final double verticalBias = (upperFace - lowerFace) / max(1, upperFace + lowerFace);
-
-    final double eyeAsym = (leftEyeRoi - rightEyeRoi) / max(1, leftEyeRoi + rightEyeRoi);
-    final double browAsym = (leftBrowRoi - rightBrowRoi) / max(1, leftBrowRoi + rightBrowRoi);
-    final double mouthAsym = (leftMouthRoi - rightMouthRoi) / max(1, leftMouthRoi + rightMouthRoi);
+    final double verticalBias =
+        (upperFace - lowerFace) / max(1, upperFace + lowerFace);
+    final double eyeAsym =
+        (leftEyeRoi - rightEyeRoi) / max(1, leftEyeRoi + rightEyeRoi);
+    final double browAsym =
+        (leftBrowRoi - rightBrowRoi) / max(1, leftBrowRoi + rightBrowRoi);
+    final double mouthAsym =
+        (leftMouthRoi - rightMouthRoi) / max(1, leftMouthRoi + rightMouthRoi);
     final double mouthCenterOffset =
         ((centerMouthRoi - ((leftMouthRoi + rightMouthRoi) / 2)).abs() / 255)
             .clamp(0, 1);
@@ -200,24 +228,37 @@ class RealLandmarksDetector implements LandmarksDetector {
       FaceExpression.anger => 0.02,
     };
 
+    final List<LandmarkPoint> dense = List<LandmarkPoint>.generate(
+      468,
+      (int i) => LandmarkPoint(
+        x: ((i % 26) / 26) + faceBias * 0.05,
+        y: ((i ~/ 26) / 18) + verticalBias * 0.05,
+        z: (sin(i / 25) * 0.01) + eyeAsym * 0.03 + mouthAsym * 0.03,
+      ),
+    );
+
     return FacialLandmarks(
       leftMouthCornerY: (0.46 + mouthAsym * 0.12 + expBoost).clamp(0, 1),
       rightMouthCornerY: (0.46 - mouthAsym * 0.12).clamp(0, 1),
       leftMouthWidth: (0.25 + expBoost + mouthAsym.abs() * 0.10).clamp(0, 1),
       rightMouthWidth: (0.25 + expBoost / 2 - mouthAsym * 0.06).clamp(0, 1),
-      leftEyeOpen: (0.29 - eyeAsym * 0.15 - verticalBias.abs() * 0.03).clamp(0, 1),
-      rightEyeOpen: (0.29 + eyeAsym * 0.15 - verticalBias.abs() * 0.03).clamp(0, 1),
+      leftEyeOpen:
+          (0.29 - eyeAsym * 0.15 - verticalBias.abs() * 0.03).clamp(0, 1),
+      rightEyeOpen:
+          (0.29 + eyeAsym * 0.15 - verticalBias.abs() * 0.03).clamp(0, 1),
       leftBrowY: (0.36 - browAsym * 0.12).clamp(0, 1),
       rightBrowY: (0.36 + browAsym * 0.12).clamp(0, 1),
-      midlineDeviation: (faceBias.abs() * 0.20 + mouthCenterOffset * 0.60).clamp(0, 1),
+      midlineDeviation:
+          (faceBias.abs() * 0.20 + mouthCenterOffset * 0.60).clamp(0, 1),
       yaw: (faceBias * 40).clamp(-30, 30),
       pitch: (verticalBias * 28).clamp(-20, 20),
       roll: ((eyeAsym + browAsym) * 18).clamp(-15, 15),
       centerOffsetRatio: faceBias.abs().clamp(0, 1),
       brightness: globalBrightness,
       confidence: 0.75,
-      landmarkCount: 28,
+      landmarkCount: dense.length,
       source: DataSource.fallback,
+      denseLandmarks: dense,
     );
   }
 }
@@ -259,6 +300,8 @@ class TFLitePalsyClassifier implements PalsyClassifier {
 
   Interpreter? _interpreter;
   List<String>? _labels;
+  List<double>? _means;
+  List<double>? _stds;
 
   Future<void> _ensureLoaded() async {
     if (_interpreter != null) return;
@@ -271,9 +314,22 @@ class TFLitePalsyClassifier implements PalsyClassifier {
           .map((String e) => e.trim())
           .where((String e) => e.isNotEmpty)
           .toList();
+
+      final String specRaw =
+          await rootBundle.loadString(config.tfliteFeatureSpecAssetPath);
+      final Map<String, dynamic> spec =
+          jsonDecode(specRaw) as Map<String, dynamic>;
+      _means = ((spec['mean'] as List<dynamic>?) ?? const <dynamic>[])
+          .map((dynamic e) => (e as num).toDouble())
+          .toList();
+      _stds = ((spec['std'] as List<dynamic>?) ?? const <dynamic>[])
+          .map((dynamic e) => max(1e-6, (e as num).toDouble()))
+          .toList();
     } catch (_) {
       _interpreter = null;
       _labels = const <String>['normal', 'palsy'];
+      _means = null;
+      _stds = null;
     }
   }
 
@@ -302,7 +358,7 @@ class TFLitePalsyClassifier implements PalsyClassifier {
 
     final List<int> inputShape = _interpreter!.getInputTensor(0).shape;
     final List<int> outputShape = _interpreter!.getOutputTensor(0).shape;
-    final bool isFeatureModel = inputShape.length == 2 && inputShape[1] <= 128;
+    final bool isFeatureModel = inputShape.length == 2 && inputShape[1] <= 4096;
 
     final dynamic input = isFeatureModel
         ? _buildFeaturesInput(inputShape, metrics, landmarks)
@@ -333,7 +389,12 @@ class TFLitePalsyClassifier implements PalsyClassifier {
     FacialLandmarks landmarks,
   ) {
     final int featureCount = inputShape[1];
+    final List<double> denseVector = landmarks.denseLandmarks
+        .expand((LandmarkPoint p) => <double>[p.x, p.y, p.z])
+        .toList();
+
     final List<double> features = <double>[
+      ...denseVector,
       ...metrics.toFeatureVector(),
       landmarks.yaw / 30,
       landmarks.pitch / 30,
@@ -344,7 +405,10 @@ class TFLitePalsyClassifier implements PalsyClassifier {
 
     final List<double> padded = List<double>.filled(featureCount, 0);
     for (int i = 0; i < min(featureCount, features.length); i++) {
-      padded[i] = features[i];
+      final double raw = features[i];
+      final double mean = (_means != null && i < _means!.length) ? _means![i] : 0;
+      final double std = (_stds != null && i < _stds!.length) ? _stds![i] : 1;
+      padded[i] = (raw - mean) / std;
     }
     return <List<double>>[padded];
   }
@@ -554,9 +618,7 @@ class FacePipeline {
     }
 
     if (landmarks.source != DataSource.real || c.source != DataSource.real) {
-      reasons.add(
-        FaceStrings.nonRealSourceWarning,
-      );
+      reasons.add(FaceStrings.nonRealSourceWarning);
     }
 
     return ExpressionResult(

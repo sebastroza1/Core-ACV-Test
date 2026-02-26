@@ -1,0 +1,6 @@
+datasets
+mediapipe
+opencv-python
+scikit-learn
+tensorflow
+numpy

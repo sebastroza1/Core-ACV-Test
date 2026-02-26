@@ -6,6 +6,14 @@ enum FaceStatus { ok, obs, alert }
 
 enum DataSource { mock, real, fallback }
 
+class LandmarkPoint {
+  const LandmarkPoint({required this.x, required this.y, required this.z});
+
+  final double x;
+  final double y;
+  final double z;
+}
+
 class FacialLandmarks {
   const FacialLandmarks({
     required this.leftMouthCornerY,
@@ -25,6 +33,7 @@ class FacialLandmarks {
     required this.confidence,
     required this.landmarkCount,
     required this.source,
+    this.denseLandmarks = const <LandmarkPoint>[],
   });
 
   final double leftMouthCornerY;
@@ -44,6 +53,7 @@ class FacialLandmarks {
   final double confidence;
   final int landmarkCount;
   final DataSource source;
+  final List<LandmarkPoint> denseLandmarks;
 }
 
 class CaptureSnapshot {
@@ -80,8 +90,6 @@ class GeometricMetrics {
   final double browDelta;
   final double midlineDeviation;
 
-  /// Signed values preserve side direction to explain anomalies.
-  /// Positive means left side > right side after baseline compensation.
   final double mouthCornerSigned;
   final double mouthWidthSigned;
   final double eyeOpenSigned;

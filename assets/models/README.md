@@ -1,3 +1,4 @@
-Place your real model here:
-- palsy_model.tflite
+Place trained artifacts here:
+- palsy_landmarks_model.tflite
 - labels.txt
+- feature_spec.json

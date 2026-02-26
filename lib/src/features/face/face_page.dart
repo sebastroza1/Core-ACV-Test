@@ -22,8 +22,8 @@ class FacePage extends StatefulWidget {
 class _FacePageState extends State<FacePage> {
   CameraController? _cameraController;
   String? _cameraError;
-  bool _useMockLandmarks = true;
-  bool _useMockClassifier = true;
+  bool _useMockLandmarks = false;
+  bool _useMockClassifier = false;
 
   late final FacePipeline _pipeline;
   final Map<FaceExpression, CaptureSnapshot> _captures =
