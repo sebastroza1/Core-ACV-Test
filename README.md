@@ -68,3 +68,8 @@ Si aparece: `MissingPluginException(No implementation found for method available
    flutter run -d windows # o macos/linux
    ```
 3. Este prototipo incluye fallback: si falla el plugin de cámara, el pipeline mock sigue funcionando sin preview real.
+
+
+## Nota para Windows
+
+Este repo fija dependencia explícita de `camera_windows` para evitar errores de resolución en `flutter pub get` en entornos Windows.
