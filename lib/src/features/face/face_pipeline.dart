@@ -396,36 +396,47 @@ class FacePipeline {
     FacialLandmarks current, {
     FacialLandmarks? baseline,
   }) {
-    double delta(double a, double b, [double ba = 0, double bb = 0]) =>
-        ((a - b) - (ba - bb)).abs();
+    double signed(double a, double b, [double ba = 0, double bb = 0]) =>
+        ((a - b) - (ba - bb));
+
+    final double mouthCornerSigned = signed(
+      current.leftMouthCornerY,
+      current.rightMouthCornerY,
+      baseline?.leftMouthCornerY ?? 0,
+      baseline?.rightMouthCornerY ?? 0,
+    );
+    final double mouthWidthSigned = signed(
+      current.leftMouthWidth,
+      current.rightMouthWidth,
+      baseline?.leftMouthWidth ?? 0,
+      baseline?.rightMouthWidth ?? 0,
+    );
+    final double eyeOpenSigned = signed(
+      current.leftEyeOpen,
+      current.rightEyeOpen,
+      baseline?.leftEyeOpen ?? 0,
+      baseline?.rightEyeOpen ?? 0,
+    );
+    final double browSigned = signed(
+      current.leftBrowY,
+      current.rightBrowY,
+      baseline?.leftBrowY ?? 0,
+      baseline?.rightBrowY ?? 0,
+    );
+    final double midlineSigned =
+        current.midlineDeviation - (baseline?.midlineDeviation ?? 0);
 
     return GeometricMetrics(
-      mouthCornerDelta: delta(
-        current.leftMouthCornerY,
-        current.rightMouthCornerY,
-        baseline?.leftMouthCornerY ?? 0,
-        baseline?.rightMouthCornerY ?? 0,
-      ),
-      mouthWidthDelta: delta(
-        current.leftMouthWidth,
-        current.rightMouthWidth,
-        baseline?.leftMouthWidth ?? 0,
-        baseline?.rightMouthWidth ?? 0,
-      ),
-      eyeOpenDelta: delta(
-        current.leftEyeOpen,
-        current.rightEyeOpen,
-        baseline?.leftEyeOpen ?? 0,
-        baseline?.rightEyeOpen ?? 0,
-      ),
-      browDelta: delta(
-        current.leftBrowY,
-        current.rightBrowY,
-        baseline?.leftBrowY ?? 0,
-        baseline?.rightBrowY ?? 0,
-      ),
-      midlineDeviation:
-          (current.midlineDeviation - (baseline?.midlineDeviation ?? 0)).abs(),
+      mouthCornerDelta: mouthCornerSigned.abs(),
+      mouthWidthDelta: mouthWidthSigned.abs(),
+      eyeOpenDelta: eyeOpenSigned.abs(),
+      browDelta: browSigned.abs(),
+      midlineDeviation: midlineSigned.abs(),
+      mouthCornerSigned: mouthCornerSigned,
+      mouthWidthSigned: mouthWidthSigned,
+      eyeOpenSigned: eyeOpenSigned,
+      browSigned: browSigned,
+      midlineSigned: midlineSigned,
     );
   }
 
@@ -433,6 +444,7 @@ class FacePipeline {
     GeometricMetrics m,
     ClassifierResult c,
     FacialLandmarks landmarks,
+    FaceExpression expression,
   ) {
     double normalized(String key, double value) =>
         (value / (config.metricThresholds[key] ?? 0.1)).clamp(0, 2);
@@ -445,8 +457,33 @@ class FacePipeline {
     final double browScore = normalized('browDelta', m.browDelta) * 50;
     final double midlineScore =
         normalized('midlineDeviation', m.midlineDeviation) * 50;
-    final double geom =
-        ((mouthScore + eyesScore + browScore + midlineScore) / 4).clamp(0, 100);
+
+    final Map<String, double> weights = switch (expression) {
+      FaceExpression.neutral => <String, double>{
+          'mouth': 0.25,
+          'eyes': 0.30,
+          'brow': 0.20,
+          'midline': 0.25,
+        },
+      FaceExpression.smile => <String, double>{
+          'mouth': 0.45,
+          'eyes': 0.20,
+          'brow': 0.10,
+          'midline': 0.25,
+        },
+      FaceExpression.anger => <String, double>{
+          'mouth': 0.20,
+          'eyes': 0.20,
+          'brow': 0.35,
+          'midline': 0.25,
+        },
+    };
+
+    final double geom = (mouthScore * weights['mouth']! +
+            eyesScore * weights['eyes']! +
+            browScore * weights['brow']! +
+            midlineScore * weights['midline']!)
+        .clamp(0, 100);
     final double finalScore =
         (config.alpha * geom + (1 - config.alpha) * (c.palsyProb * 100))
             .clamp(0, 100);
@@ -466,13 +503,32 @@ class FacePipeline {
         zones.entries.reduce((a, b) => a.value >= b.value ? a : b).key;
     final List<String> reasons = <String>[];
     if (m.mouthCornerDelta > (config.metricThresholds['mouthCornerDelta'] ?? 0)) {
-      reasons.add(FaceStrings.reasonMouth);
+      reasons.add(
+        m.mouthCornerSigned >= 0
+            ? 'Comisura izquierda más alta / derecha más baja'
+            : 'Comisura derecha más alta / izquierda más baja',
+      );
+    }
+    if (m.mouthWidthDelta > (config.metricThresholds['mouthWidthDelta'] ?? 0)) {
+      reasons.add(
+        m.mouthWidthSigned >= 0
+            ? 'Sonrisa más amplia en lado izquierdo'
+            : 'Sonrisa más amplia en lado derecho',
+      );
     }
     if (m.eyeOpenDelta > (config.metricThresholds['eyeOpenDelta'] ?? 0)) {
-      reasons.add(FaceStrings.reasonEye);
+      reasons.add(
+        m.eyeOpenSigned >= 0
+            ? 'Apertura ocular derecha reducida'
+            : 'Apertura ocular izquierda reducida',
+      );
     }
     if (m.browDelta > (config.metricThresholds['browDelta'] ?? 0)) {
-      reasons.add(FaceStrings.reasonBrow);
+      reasons.add(
+        m.browSigned >= 0
+            ? 'Ceja izquierda más alta que derecha'
+            : 'Ceja derecha más alta que izquierda',
+      );
     }
     if (m.midlineDeviation >
         (config.metricThresholds['midlineDeviation'] ?? 0)) {

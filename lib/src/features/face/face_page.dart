@@ -136,7 +136,8 @@ class _FacePageState extends State<FacePage> {
         metrics: metrics,
         frameBytes: sample.frameBytes,
       );
-      _results[expression] = _pipeline.fuse(metrics, cls, sample.landmarks);
+      _results[expression] =
+          _pipeline.fuse(metrics, cls, sample.landmarks, expression);
     }
     setState(() {});
   }

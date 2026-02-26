@@ -67,6 +67,11 @@ class GeometricMetrics {
     required this.eyeOpenDelta,
     required this.browDelta,
     required this.midlineDeviation,
+    required this.mouthCornerSigned,
+    required this.mouthWidthSigned,
+    required this.eyeOpenSigned,
+    required this.browSigned,
+    required this.midlineSigned,
   });
 
   final double mouthCornerDelta;
@@ -75,6 +80,14 @@ class GeometricMetrics {
   final double browDelta;
   final double midlineDeviation;
 
+  /// Signed values preserve side direction to explain anomalies.
+  /// Positive means left side > right side after baseline compensation.
+  final double mouthCornerSigned;
+  final double mouthWidthSigned;
+  final double eyeOpenSigned;
+  final double browSigned;
+  final double midlineSigned;
+
   List<double> toFeatureVector() {
     return <double>[
       mouthCornerDelta,
@@ -82,6 +95,11 @@ class GeometricMetrics {
       eyeOpenDelta,
       browDelta,
       midlineDeviation,
+      mouthCornerSigned,
+      mouthWidthSigned,
+      eyeOpenSigned,
+      browSigned,
+      midlineSigned,
     ];
   }
 }

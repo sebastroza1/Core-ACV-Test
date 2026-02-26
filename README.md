@@ -73,6 +73,25 @@ flutter:
 - **Modelo por features** (`[1, N]`): usa vector geométrico + pose/brillo/confianza.
 - **Modelo por imagen** (`[1, H, W, 3]`): resize/normalización de frame y predicción por imagen.
 
+
+## Proceso de análisis (paso a paso)
+
+1. **Captura por expresión**: se toma un snapshot por cada fase (`Neutral`, `Smile`, `Anger`) con `frame` + landmarks.
+2. **Detección de landmarks**:
+   - Si toggle está en Mock: usa datos simulados.
+   - Si toggle está en Real: intenta endpoint HTTP local (`/detect`) y si falla usa fallback heurístico sobre la imagen.
+3. **Quality gate**: valida centrado, yaw/pitch/roll, brillo, confianza y cantidad de landmarks antes de aceptar la toma.
+4. **Baseline**: `Neutral` se usa como referencia obligatoria para comparar `Smile` y `Anger`.
+5. **Métricas geométricas**: calcula deltas absolutos y también deltas con signo (para saber qué lado está más afectado).
+6. **Clasificador**:
+   - Mock, o
+   - TFLite real. Detecta automáticamente si el modelo es por **features** o por **imagen** según shape del input tensor.
+7. **Fusión final**: `score_final = alpha * score_geom + (1 - alpha) * (palsy_prob * 100)`.
+8. **Interpretación clínica**:
+   - estado por expresión (`SANO` / `CON ANOMALÍAS` / `ANOMALÍAS IMPORTANTES`),
+   - anomalías explicadas con dirección (izquierda/derecha),
+   - resultado general de las 3 expresiones.
+
 ## “Líneas de expresión”
 
 Este sistema **no mide arrugas** como textura de forma explícita. Evalúa expresión por:
