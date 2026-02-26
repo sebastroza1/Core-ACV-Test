@@ -1,0 +1,24 @@
+{
+  "feature_dim": 1415,
+  "landmark_count": 468,
+  "ordering": "mediapipe_face_mesh_468_xyz",
+  "extra_features": [
+    "mouthCornerDelta",
+    "mouthWidthDelta",
+    "eyeOpenDelta",
+    "browDelta",
+    "midlineDeviation",
+    "mouthCornerSigned",
+    "mouthWidthSigned",
+    "eyeOpenSigned",
+    "browSigned",
+    "midlineSigned",
+    "yaw_norm",
+    "pitch_norm",
+    "roll_norm",
+    "brightness_norm",
+    "confidence"
+  ],
+  "mean": [],
+  "std": []
+}
