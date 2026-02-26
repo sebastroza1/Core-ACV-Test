@@ -51,3 +51,20 @@ Agregar assets a `pubspec.yaml` cuando el modelo exista.
 ## Disclaimer
 
 **Esto NO es diagnóstico médico. Si sospecha ACV, contacte emergencias.**
+
+
+## Troubleshooting cámara Desktop
+
+Si aparece: `MissingPluginException(No implementation found for method availableCameras...)`
+
+1. Limpia e instala dependencias nuevamente:
+   ```bash
+   flutter clean
+   flutter pub get
+   ```
+2. Verifica que corres en Desktop soportado:
+   ```bash
+   flutter devices
+   flutter run -d windows # o macos/linux
+   ```
+3. Este prototipo incluye fallback: si falla el plugin de cámara, el pipeline mock sigue funcionando sin preview real.

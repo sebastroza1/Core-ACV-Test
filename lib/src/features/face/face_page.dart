@@ -1,5 +1,6 @@
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../../core/app_config.dart';
 import '../../core/app_strings.dart';
@@ -43,6 +44,11 @@ class _FacePageState extends State<FacePage> {
       _cameraController = CameraController(cams.first, ResolutionPreset.medium, enableAudio: false);
       await _cameraController!.initialize();
       if (mounted) setState(() {});
+    } on MissingPluginException {
+      setState(() {
+        _cameraError =
+            '${FaceStrings.cameraPluginMissing}\n${FaceStrings.cameraFallback}\n${FaceStrings.cameraHelp}';
+      });
     } catch (e) {
       setState(() => _cameraError = 'Error de cámara: $e');
     }
@@ -152,11 +158,28 @@ class _FacePageState extends State<FacePage> {
   }
 
   Widget _buildPreview() {
-    if (_cameraError != null) return Center(child: Text(_cameraError!));
+    if (_cameraError != null) {
+      return Container(
+        width: double.infinity,
+        color: Colors.black12,
+        alignment: Alignment.center,
+        padding: const EdgeInsets.all(16),
+        child: Text(_cameraError!, textAlign: TextAlign.center),
+      );
+    }
     if (_cameraController == null || !_cameraController!.value.isInitialized) {
       return const Center(child: CircularProgressIndicator());
     }
-    return CameraPreview(_cameraController!);
+
+    try {
+      return CameraPreview(_cameraController!);
+    } on MissingPluginException {
+      return Container(
+        color: Colors.black12,
+        alignment: Alignment.center,
+        child: const Text(FaceStrings.previewUnavailable),
+      );
+    }
   }
 
   Widget _buildResults() {

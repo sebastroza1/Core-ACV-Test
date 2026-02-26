@@ -14,4 +14,12 @@ class FaceStrings {
   static const String reasonEye = 'Apertura ocular izquierda reducida';
   static const String reasonBrow = 'Desnivel de cejas evidente';
   static const String reasonMidline = 'Desviación del eje nariz-mentón';
+
+  static const String cameraPluginMissing =
+      'Plugin de cámara no registrado en Desktop (MissingPluginException).';
+  static const String cameraFallback =
+      'Continuarás en modo mock sin preview real de cámara.';
+  static const String cameraHelp =
+      'Sugerencia: ejecuta flutter clean, flutter pub get y vuelve a correr en Windows/macOS/Linux.';
+  static const String previewUnavailable = 'Preview de cámara no disponible en este entorno.';
 }
