@@ -74,4 +74,6 @@ class FaceStrings {
   static const String debugConfidence = 'confianza';
   static const String linesExpressionNote =
       'Nota: no detectamos arrugas como tal; inferimos expresión por geometría facial y, si el modelo es por imagen, también por textura.';
+  static const String nonRealSourceWarning =
+      'Resultado con fuentes no completamente reales (use detector real + modelo TFLite real para mayor precisión)';
 }

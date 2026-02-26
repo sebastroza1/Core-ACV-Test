@@ -140,65 +140,83 @@ class RealLandmarksDetector implements LandmarksDetector {
         roll: 0,
         centerOffsetRatio: 0.12,
         brightness: 70,
-        confidence: 0.65,
-        landmarkCount: 24,
+        confidence: 0.60,
+        landmarkCount: 20,
         source: DataSource.fallback,
       );
     }
 
     final int width = image.width;
     final int height = image.height;
-    double leftLum = 0;
-    double rightLum = 0;
-    double topLum = 0;
-    double bottomLum = 0;
 
-    for (int y = 0; y < height; y += 8) {
-      for (int x = 0; x < width; x += 8) {
-        final img.Pixel pixel = image.getPixel(x, y);
-        final double lum =
-            (pixel.r.toDouble() + pixel.g.toDouble() + pixel.b.toDouble()) /
-                3;
-        if (x < width / 2) {
-          leftLum += lum;
-        } else {
-          rightLum += lum;
-        }
-        if (y < height / 2) {
-          topLum += lum;
-        } else {
-          bottomLum += lum;
+    double roiMean(double x0, double x1, double y0, double y1) {
+      final int sx = (width * x0).toInt().clamp(0, width - 1);
+      final int ex = (width * x1).toInt().clamp(1, width);
+      final int sy = (height * y0).toInt().clamp(0, height - 1);
+      final int ey = (height * y1).toInt().clamp(1, height);
+      double sum = 0;
+      int count = 0;
+      for (int y = sy; y < ey; y += 4) {
+        for (int x = sx; x < ex; x += 4) {
+          final img.Pixel pixel = image.getPixel(x, y);
+          final double lum =
+              (pixel.r.toDouble() + pixel.g.toDouble() + pixel.b.toDouble()) /
+                  3;
+          sum += lum;
+          count++;
         }
       }
+      return sum / max(1, count);
     }
 
-    final double brightness = ((leftLum + rightLum) / max(1, (width * height) / 64)).clamp(0, 255);
-    final double horizontalBias = (leftLum - rightLum) / max(1, leftLum + rightLum);
-    final double verticalBias = (topLum - bottomLum) / max(1, topLum + bottomLum);
+    final double leftFace = roiMean(0.15, 0.48, 0.10, 0.90);
+    final double rightFace = roiMean(0.52, 0.85, 0.10, 0.90);
+    final double upperFace = roiMean(0.15, 0.85, 0.10, 0.45);
+    final double lowerFace = roiMean(0.15, 0.85, 0.55, 0.90);
 
-    final double expBoost = expression == FaceExpression.smile
-        ? 0.04
-        : expression == FaceExpression.anger
-            ? 0.05
-            : 0.01;
+    final double leftEyeRoi = roiMean(0.22, 0.40, 0.24, 0.40);
+    final double rightEyeRoi = roiMean(0.60, 0.78, 0.24, 0.40);
+    final double leftBrowRoi = roiMean(0.22, 0.40, 0.16, 0.24);
+    final double rightBrowRoi = roiMean(0.60, 0.78, 0.16, 0.24);
+    final double leftMouthRoi = roiMean(0.25, 0.45, 0.62, 0.80);
+    final double rightMouthRoi = roiMean(0.55, 0.75, 0.62, 0.80);
+    final double centerMouthRoi = roiMean(0.45, 0.55, 0.62, 0.80);
+
+    final double globalBrightness = ((leftFace + rightFace + upperFace + lowerFace) / 4).clamp(0, 255);
+
+    final double faceBias = (leftFace - rightFace) / max(1, leftFace + rightFace);
+    final double verticalBias = (upperFace - lowerFace) / max(1, upperFace + lowerFace);
+
+    final double eyeAsym = (leftEyeRoi - rightEyeRoi) / max(1, leftEyeRoi + rightEyeRoi);
+    final double browAsym = (leftBrowRoi - rightBrowRoi) / max(1, leftBrowRoi + rightBrowRoi);
+    final double mouthAsym = (leftMouthRoi - rightMouthRoi) / max(1, leftMouthRoi + rightMouthRoi);
+    final double mouthCenterOffset =
+        ((centerMouthRoi - ((leftMouthRoi + rightMouthRoi) / 2)).abs() / 255)
+            .clamp(0, 1);
+
+    final double expBoost = switch (expression) {
+      FaceExpression.neutral => 0.00,
+      FaceExpression.smile => 0.02,
+      FaceExpression.anger => 0.02,
+    };
 
     return FacialLandmarks(
-      leftMouthCornerY: (0.47 + expBoost + horizontalBias.abs() * 0.03).clamp(0, 1),
-      rightMouthCornerY: (0.45 - horizontalBias * 0.02).clamp(0, 1),
-      leftMouthWidth: (0.26 + expBoost + horizontalBias.abs() * 0.02).clamp(0, 1),
-      rightMouthWidth: (0.24 + expBoost / 2).clamp(0, 1),
-      leftEyeOpen: (0.29 - verticalBias.abs() * 0.03).clamp(0, 1),
-      rightEyeOpen: (0.30 - horizontalBias.abs() * 0.02).clamp(0, 1),
-      leftBrowY: (0.36 - verticalBias * 0.03).clamp(0, 1),
-      rightBrowY: (0.35 + verticalBias * 0.03).clamp(0, 1),
-      midlineDeviation: (horizontalBias.abs() * 0.12 + 0.03).clamp(0, 1),
-      yaw: (horizontalBias * 35).clamp(-30, 30),
-      pitch: (verticalBias * 25).clamp(-20, 20),
-      roll: (horizontalBias * 12).clamp(-15, 15),
-      centerOffsetRatio: horizontalBias.abs().clamp(0, 1),
-      brightness: brightness,
-      confidence: 0.7,
-      landmarkCount: 24,
+      leftMouthCornerY: (0.46 + mouthAsym * 0.12 + expBoost).clamp(0, 1),
+      rightMouthCornerY: (0.46 - mouthAsym * 0.12).clamp(0, 1),
+      leftMouthWidth: (0.25 + expBoost + mouthAsym.abs() * 0.10).clamp(0, 1),
+      rightMouthWidth: (0.25 + expBoost / 2 - mouthAsym * 0.06).clamp(0, 1),
+      leftEyeOpen: (0.29 - eyeAsym * 0.15 - verticalBias.abs() * 0.03).clamp(0, 1),
+      rightEyeOpen: (0.29 + eyeAsym * 0.15 - verticalBias.abs() * 0.03).clamp(0, 1),
+      leftBrowY: (0.36 - browAsym * 0.12).clamp(0, 1),
+      rightBrowY: (0.36 + browAsym * 0.12).clamp(0, 1),
+      midlineDeviation: (faceBias.abs() * 0.20 + mouthCenterOffset * 0.60).clamp(0, 1),
+      yaw: (faceBias * 40).clamp(-30, 30),
+      pitch: (verticalBias * 28).clamp(-20, 20),
+      roll: ((eyeAsym + browAsym) * 18).clamp(-15, 15),
+      centerOffsetRatio: faceBias.abs().clamp(0, 1),
+      brightness: globalBrightness,
+      confidence: 0.75,
+      landmarkCount: 28,
       source: DataSource.fallback,
     );
   }
@@ -533,6 +551,12 @@ class FacePipeline {
     if (m.midlineDeviation >
         (config.metricThresholds['midlineDeviation'] ?? 0)) {
       reasons.add(FaceStrings.reasonMidline);
+    }
+
+    if (landmarks.source != DataSource.real || c.source != DataSource.real) {
+      reasons.add(
+        FaceStrings.nonRealSourceWarning,
+      );
     }
 
     return ExpressionResult(

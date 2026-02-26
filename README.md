@@ -121,3 +121,14 @@ Este repo fija dependencia explícita de `camera_windows` para evitar errores de
 ## Disclaimer
 
 **Esto NO es diagnóstico médico. Si sospecha ACV, contacte emergencias.**
+
+
+## Si una imagen con ACV no se detecta bien
+
+Para casos reales, la precisión depende de usar **fuentes reales**:
+1. Toggle landmarks en REAL con endpoint `/detect` funcionando.
+2. Toggle classifier en REAL con `palsy_model.tflite` válido cargado.
+3. Buena captura: rostro centrado, luz suficiente y poca rotación.
+
+Con fuentes `MOCK/FALLBACK`, la salida sirve para prototipo y puede sub-detectar anomalías clínicas.
+Además, los umbrales base (`metricThresholds`, `okMax`, `obsMax`) son calibrables por población/estudio.

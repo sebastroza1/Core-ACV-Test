@@ -1,8 +1,8 @@
 class FacePipelineConfig {
   const FacePipelineConfig({
     this.alpha = 0.65,
-    this.okMax = 30,
-    this.obsMax = 60,
+    this.okMax = 25,
+    this.obsMax = 50,
     this.minBrightness = 40,
     this.maxYawPitchRoll = 20,
     this.minLandmarkConfidence = 0.6,
@@ -13,11 +13,11 @@ class FacePipelineConfig {
     this.tfliteModelAssetPath = 'assets/models/palsy_model.tflite',
     this.tfliteLabelsAssetPath = 'assets/models/labels.txt',
     this.metricThresholds = const <String, double>{
-      'mouthCornerDelta': 0.12,
-      'mouthWidthDelta': 0.15,
-      'eyeOpenDelta': 0.12,
-      'browDelta': 0.12,
-      'midlineDeviation': 0.10,
+      'mouthCornerDelta': 0.08,
+      'mouthWidthDelta': 0.10,
+      'eyeOpenDelta': 0.08,
+      'browDelta': 0.08,
+      'midlineDeviation': 0.07,
     },
   });
 
