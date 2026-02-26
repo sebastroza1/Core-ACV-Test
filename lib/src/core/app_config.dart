@@ -8,6 +8,10 @@ class FacePipelineConfig {
     this.minLandmarkConfidence = 0.6,
     this.minLandmarks = 20,
     this.maxCenterOffsetRatio = 0.20,
+    this.realLandmarksEndpoint = 'http://127.0.0.1:8765/detect',
+    this.realtimeRequestTimeoutMs = 1200,
+    this.tfliteModelAssetPath = 'assets/models/palsy_model.tflite',
+    this.tfliteLabelsAssetPath = 'assets/models/labels.txt',
     this.metricThresholds = const <String, double>{
       'mouthCornerDelta': 0.12,
       'mouthWidthDelta': 0.15,
@@ -25,6 +29,10 @@ class FacePipelineConfig {
   final double minLandmarkConfidence;
   final int minLandmarks;
   final double maxCenterOffsetRatio;
+  final String realLandmarksEndpoint;
+  final int realtimeRequestTimeoutMs;
+  final String tfliteModelAssetPath;
+  final String tfliteLabelsAssetPath;
   final Map<String, double> metricThresholds;
 }
 

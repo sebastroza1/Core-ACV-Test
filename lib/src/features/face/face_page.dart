@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -23,10 +25,9 @@ class _FacePageState extends State<FacePage> {
   bool _useMockLandmarks = true;
   bool _useMockClassifier = true;
 
-  final FacePipeline _pipeline =
-      FacePipeline(AppConfig.desktopDefault.facePipeline);
-  final Map<FaceExpression, FacialLandmarks> _captures =
-      <FaceExpression, FacialLandmarks>{};
+  late final FacePipeline _pipeline;
+  final Map<FaceExpression, CaptureSnapshot> _captures =
+      <FaceExpression, CaptureSnapshot>{};
   final Map<FaceExpression, ExpressionResult> _results =
       <FaceExpression, ExpressionResult>{};
   final List<String> _warnings = <String>[];
@@ -34,6 +35,7 @@ class _FacePageState extends State<FacePage> {
   @override
   void initState() {
     super.initState();
+    _pipeline = FacePipeline(widget.config.facePipeline);
     _initCamera();
   }
 
@@ -62,19 +64,46 @@ class _FacePageState extends State<FacePage> {
   }
 
   Future<void> _capture(FaceExpression expression) async {
-    final LandmarksDetector detector = MockLandmarksDetector(expression);
-    if (!_useMockLandmarks) {
-      _warnings.add('Modo Real Landmarks pendiente; usando mock.');
-    }
-    final FacialLandmarks landmarks = await detector.detect();
+    final LandmarksDetector detector = _useMockLandmarks
+        ? MockLandmarksDetector()
+        : RealLandmarksDetector(widget.config.facePipeline);
+    final Uint8List? frameBytes = await _captureFrameBytes();
+
+    final FacialLandmarks landmarks = await detector.detect(
+      expression: expression,
+      frameBytes: frameBytes,
+    );
+
     final List<String> warnings = _pipeline.qualityWarnings(landmarks);
+
     setState(() {
       _warnings
         ..clear()
         ..addAll(warnings);
     });
+
     if (warnings.isNotEmpty) return;
-    setState(() => _captures[expression] = landmarks);
+
+    setState(() {
+      _captures[expression] = CaptureSnapshot(
+        expression: expression,
+        landmarks: landmarks,
+        frameBytes: frameBytes,
+        capturedAt: DateTime.now(),
+      );
+    });
+  }
+
+  Future<Uint8List?> _captureFrameBytes() async {
+    try {
+      if (_cameraController == null || !_cameraController!.value.isInitialized) {
+        return null;
+      }
+      final XFile frame = await _cameraController!.takePicture();
+      return frame.readAsBytes();
+    } catch (_) {
+      return null;
+    }
   }
 
   Future<void> _calculate() async {
@@ -87,20 +116,27 @@ class _FacePageState extends State<FacePage> {
       return;
     }
 
-    final FacialLandmarks baseline = _captures[FaceExpression.neutral]!;
-    final PalsyClassifier classifier = MockPalsyClassifier();
-    if (!_useMockClassifier) {
-      _warnings.add('Modo Real Classifier pendiente; usando mock.');
-    }
+    final CaptureSnapshot baselineCapture = _captures[FaceExpression.neutral]!;
+    final PalsyClassifier classifier = _useMockClassifier
+        ? MockPalsyClassifier()
+        : TFLitePalsyClassifier(widget.config.facePipeline);
+
+    _results.clear();
+
     for (final FaceExpression expression in FaceExpression.values) {
-      final FacialLandmarks? sample = _captures[expression];
+      final CaptureSnapshot? sample = _captures[expression];
       if (sample == null) continue;
       final GeometricMetrics metrics = _pipeline.computeMetrics(
-        sample,
-        baseline: expression == FaceExpression.neutral ? null : baseline,
+        sample.landmarks,
+        baseline:
+            expression == FaceExpression.neutral ? null : baselineCapture.landmarks,
       );
-      final ClassifierResult c = await classifier.classify(sample);
-      _results[expression] = _pipeline.fuse(metrics, c);
+      final ClassifierResult cls = await classifier.classify(
+        landmarks: sample.landmarks,
+        metrics: metrics,
+        frameBytes: sample.frameBytes,
+      );
+      _results[expression] = _pipeline.fuse(metrics, cls, sample.landmarks);
     }
     setState(() {});
   }
@@ -160,19 +196,37 @@ class _FacePageState extends State<FacePage> {
                   SwitchListTile(
                     value: _useMockLandmarks,
                     title: const Text(AppStrings.mockLandmarks),
-                    onChanged: (bool value) =>
-                        setState(() => _useMockLandmarks = value),
+                    onChanged: (bool value) {
+                      setState(() {
+                        _useMockLandmarks = value;
+                        _warnings.add(
+                          value
+                              ? 'Landmarks en modo MOCK.'
+                              : 'Landmarks en modo REAL (HTTP local con fallback heurístico).',
+                        );
+                      });
+                    },
                   ),
                   SwitchListTile(
                     value: _useMockClassifier,
                     title: const Text(AppStrings.mockClassifier),
-                    onChanged: (bool value) =>
-                        setState(() => _useMockClassifier = value),
+                    onChanged: (bool value) {
+                      setState(() {
+                        _useMockClassifier = value;
+                        _warnings.add(
+                          value
+                              ? 'Clasificador en modo MOCK.'
+                              : 'Clasificador en modo REAL (TFLite con fallback mock).',
+                        );
+                      });
+                    },
                   ),
                   Text(
                     AppStrings.disclaimer,
                     style: const TextStyle(color: Colors.redAccent),
                   ),
+                  const SizedBox(height: 4),
+                  const Text(FaceStrings.linesExpressionNote),
                 ],
               ),
             ),
@@ -222,10 +276,7 @@ class _FacePageState extends State<FacePage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: _warnings
-                      .map(
-                        (String e) =>
-                            Text('${FaceStrings.warningPrefix} $e'),
-                      )
+                      .map((String e) => Text('${FaceStrings.warningPrefix} $e'))
                       .toList(),
                 ),
               ),
@@ -293,6 +344,13 @@ class _FacePageState extends State<FacePage> {
               ),
               const SizedBox(height: 4),
               Text(
+                '${FaceStrings.sourceLandmarks}: ${_sourceLabel(result.landmarks.source)}',
+              ),
+              Text(
+                '${FaceStrings.sourceClassifier}: ${_sourceLabel(result.classifier.source)} (${result.classifier.modelType})',
+              ),
+              const SizedBox(height: 4),
+              Text(
                 '${FaceStrings.finalScoreLabel}: ${result.scoreFinal.toStringAsFixed(1)} / 100',
               ),
               Text(
@@ -322,15 +380,28 @@ class _FacePageState extends State<FacePage> {
                 '${FaceStrings.metricMidline}: ${result.metrics.midlineDeviation.toStringAsFixed(3)}',
               ),
               const SizedBox(height: 6),
-              Text('${FaceStrings.statusMessagePrefix} ${result.primaryZone}.'),
               Text(
-                '${FaceStrings.reasonsLabel} ${_anomaliesText(result)}',
+                '${FaceStrings.debugLabel}: ${FaceStrings.debugYawPitchRoll} ${result.landmarks.yaw.toStringAsFixed(1)}/${result.landmarks.pitch.toStringAsFixed(1)}/${result.landmarks.roll.toStringAsFixed(1)}, ${FaceStrings.debugBrightness} ${result.landmarks.brightness.toStringAsFixed(1)}, ${FaceStrings.debugLandmarksCount} ${result.landmarks.landmarkCount}, ${FaceStrings.debugConfidence} ${result.landmarks.confidence.toStringAsFixed(2)}',
               ),
+              const SizedBox(height: 6),
+              Text('${FaceStrings.statusMessagePrefix} ${result.primaryZone}.'),
+              Text('${FaceStrings.reasonsLabel} ${_anomaliesText(result)}'),
             ],
           ],
         ),
       ),
     );
+  }
+
+  String _sourceLabel(DataSource source) {
+    switch (source) {
+      case DataSource.mock:
+        return 'MOCK';
+      case DataSource.real:
+        return 'REAL';
+      case DataSource.fallback:
+        return 'FALLBACK';
+    }
   }
 
   String _expressionTitle(FaceExpression expression) {
@@ -374,8 +445,8 @@ class _FacePageState extends State<FacePage> {
   }
 
   double _overallScore() {
-    final Iterable<double> scores = FaceExpression.values
-        .map((FaceExpression e) => _results[e]!.scoreFinal);
+    final Iterable<double> scores =
+        FaceExpression.values.map((FaceExpression e) => _results[e]!.scoreFinal);
     return scores.reduce((double a, double b) => a + b) / 3;
   }
 

@@ -1,6 +1,10 @@
+import 'dart:typed_data';
+
 enum FaceExpression { neutral, smile, anger }
 
 enum FaceStatus { ok, obs, alert }
+
+enum DataSource { mock, real, fallback }
 
 class FacialLandmarks {
   const FacialLandmarks({
@@ -20,6 +24,7 @@ class FacialLandmarks {
     required this.brightness,
     required this.confidence,
     required this.landmarkCount,
+    required this.source,
   });
 
   final double leftMouthCornerY;
@@ -38,6 +43,21 @@ class FacialLandmarks {
   final double brightness;
   final double confidence;
   final int landmarkCount;
+  final DataSource source;
+}
+
+class CaptureSnapshot {
+  const CaptureSnapshot({
+    required this.expression,
+    required this.landmarks,
+    required this.frameBytes,
+    required this.capturedAt,
+  });
+
+  final FaceExpression expression;
+  final FacialLandmarks landmarks;
+  final Uint8List? frameBytes;
+  final DateTime capturedAt;
 }
 
 class GeometricMetrics {
@@ -54,13 +74,30 @@ class GeometricMetrics {
   final double eyeOpenDelta;
   final double browDelta;
   final double midlineDeviation;
+
+  List<double> toFeatureVector() {
+    return <double>[
+      mouthCornerDelta,
+      mouthWidthDelta,
+      eyeOpenDelta,
+      browDelta,
+      midlineDeviation,
+    ];
+  }
 }
 
 class ClassifierResult {
-  const ClassifierResult({required this.palsyProb, required this.label});
+  const ClassifierResult({
+    required this.palsyProb,
+    required this.label,
+    required this.source,
+    required this.modelType,
+  });
 
   final double palsyProb;
   final String label;
+  final DataSource source;
+  final String modelType;
 }
 
 class ExpressionResult {
@@ -76,6 +113,7 @@ class ExpressionResult {
     required this.status,
     required this.primaryZone,
     required this.reasons,
+    required this.landmarks,
   });
 
   final GeometricMetrics metrics;
@@ -89,4 +127,5 @@ class ExpressionResult {
   final FaceStatus status;
   final String primaryZone;
   final List<String> reasons;
+  final FacialLandmarks landmarks;
 }

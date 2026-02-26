@@ -64,4 +64,14 @@ class FaceStrings {
       'Asimetría marcada en esta expresión; requiere atención.';
   static const String overallAllGood =
       'Las 3 expresiones están dentro de rango esperado.';
+
+  static const String sourceLandmarks = 'Fuente landmarks';
+  static const String sourceClassifier = 'Fuente clasificador';
+  static const String debugLabel = 'Debug captura';
+  static const String debugYawPitchRoll = 'yaw/pitch/roll';
+  static const String debugBrightness = 'brillo';
+  static const String debugLandmarksCount = 'landmarks';
+  static const String debugConfidence = 'confianza';
+  static const String linesExpressionNote =
+      'Nota: no detectamos arrugas como tal; inferimos expresión por geometría facial y, si el modelo es por imagen, también por textura.';
 }
